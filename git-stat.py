@@ -24,6 +24,14 @@
 ###########################################################################################################
 
 ###########################################################################################################
+#	Recorder:
+#			1. total: repo,total cnt;
+#					  prople,totl cnt;
+#			2. repo: branch people cnt,commit info		
+#
+##########################################################################################################
+
+###########################################################################################################
 #
 #	History:
 #
@@ -40,7 +48,7 @@ import sys,os,string,subprocess,re
 repo_select="vivo_"
 
 # authors
-group_authors=("liuchangjian","fangchao")
+group_authors=("xiongchen","wangkangkang")
 authors_ci_count=dict.fromkeys(group_authors)
 
 ScanPath=""
@@ -53,35 +61,119 @@ select_author=""
 debugLog = 0
 debugLogLevel=(0,1,2,3)	# 0:no log; 1:op logic; 2:op; 3:verbose
 
+# git rec info
+class GitRecInfo:
+	RepoCntSum={}
+	AuthorCiSum={}
+	ReposBranches={}
+	
+	def __GitLogCnt(self,info):
+		patten = re.compile(r"\w{39}\s")
+		commit = re.findall(patten,info)
+		if debugLog >= debugLogLevel[-1]:
+			print "parse list is ",commit
+			print "Num is ",len(commit)
+		return len(commit)		
+
+	def __UpdateNum(self,rep,aut,num):
+		if debugLog >= debugLogLevel[-1]:
+			print "Repo: ",rep,"Author: ",aut,"Num: ",num
+
+		if self.RepoCntSum.has_key(rep):
+			RCnt=self.RepoCntSum.get(rep)
+			RCnt+=num
+			self.RepoCntSum[rep]=RCnt
+		else:
+			self.RepoCntSum[rep]=num
+		
+		if debugLog >= debugLogLevel[-1]:
+			print rep," Num: ",self.RepoCntSum[rep]
+
+		if self.AuthorCiSum.has_key(aut):
+			ACnt=self.AuthorCiSum.get(aut)
+			ACnt+=num
+			self.AuthorCiSum[aut]=ACnt
+		else:
+			self.AuthorCiSum[aut]=num
+		
+		if debugLog >= debugLogLevel[-1]:
+			print aut," Num: ",self.AuthorCiSum[aut]
+
+	def AddOneRec(self,rep,bra,aut,info):
+		if debugLog >= debugLogLevel[-1]:
+			print "branch is ",bra,"author is ",aut
+			print "info is:"
+			print info
+
+		self.__UpdateNum(rep,aut,self.__GitLogCnt(info))
+		
+		dic={aut:info}
+		if self.ReposBranches.has_key(rep):
+			Branches=self.ReposBranches.get(rep)	
+			if debugLog >= debugLogLevel[-1]:
+				print "Branch data is ",Branches
+
+			if Branches.has_key(bra):
+				data=Branches.get(bra)
+				if debugLog >= debugLogLevel[-2]:
+					print "Data data is ",data,"\n"
+				data.append(dic)
+			
+				Branches[bra]=data
+				self.ReposBranches[rep]=Branches
+			else:
+				Branch={}
+				data=[]
+				
+				if debugLog >= debugLogLevel[1]:
+					print "Add NEW branch: ",bra
+
+				data.append(dic)
+				Branch[bra]=data
+				self.ReposBranches[rep]=Branch
+
+		else:
+			Branches={}
+			data=[]
+			
+			if debugLog >= debugLogLevel[1]:
+				print "Add NEW Repo:",rep,"NEW Branch: ",bra
+			
+			data.append(dic)
+
+			Branches[bra]=data
+			self.ReposBranches[rep]=Branches
+
 # abstract log of one branch
-def deal_branch(branch_list):
+def deal_branch(repo,branch_list,GitR):
 	for branch in branch_list:
 		if debugLog >= debugLogLevel[-2]:
 			print "Branch is "+branch
 		try:
-			os.system('git checkout -q ' + branch)
-			os.system('git pull -q')
+			os.system('git checkout -q -f ' + branch)
+			os.system('git pull -q ')
 		except Exception, error:
 			print error
 	   
 		if select_author:
 			global group_authors
 			group_authors=[select_author]
-			if debugLog >= debugLogLevel[-2]:
+			if debugLog >= debugLogLevel[-1]:
 				print "group authors is",group_authors
 
 		for author in group_authors:
-			cmd_git_log=["git","log","--oneline","--since="+str(weeks)+".weeks"]
-		
+			cmd_git_log=["git","log","--pretty=oneline"]#,"--since="+str(weeks)+".weeks"]
 			if debugLog >= debugLogLevel[-1]:
 				print cmd_git_log
 	
 			proc = subprocess.Popen(cmd_git_log,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 			stdout, stderr = proc.communicate()
 			if stdout:
-				if debugLog >= debugLogLevel[-2]:
+				if debugLog >= debugLogLevel[-1]:
 					print "git log is :"
 					print stdout
+				
+				GitR.AddOneRec(repo,branch,author,stdout)
 
 # get all branches of a project
 def get_branches():
@@ -117,18 +209,22 @@ def get_branches():
 
 
 def GoToDir(path):
+		GitRec=GitRecInfo()
+
 		for file in os.listdir(path):
 			if os.path.isdir(file):
 				if debugLog >= debugLogLevel[-2]:
 					print "Dir is "+file
 				
 				os.chdir(file)
-
+				
 				branch_list = get_branches()
-				if debugLog >= debugLogLevel[-2]:
-					print "Branches is ",branch_list
 
-				deal_branch(branch_list)
+				if branch_list:
+					if debugLog >= debugLogLevel[-2]:
+						print "Branches is ",branch_list
+					
+					deal_branch(file,branch_list,GitRec)
 
 def ParseArgv():
 	if not len(sys.argv):
