@@ -39,11 +39,14 @@
 #----------------------------------------------------------------------------------------------------------
 #	liuchangjian	2015-10-15	v0.1		create
 #	liuchangjian	2015-10-16	v0.1		git log function is ok!
+#	liuchangjian	2015-10-16	v0.1		log statistics is ok
+#	liuchangjian	2015-10-17	v0.1		Add xlsx file save
 #
 ###########################################################################################################
 
-import sys,os,string,subprocess,re
-
+import sys,os,string,subprocess,re,xlsxwriter
+reload(sys)
+sys.setdefaultencoding('utf8')
 # select branch
 repo_select="vivo_"
 
@@ -52,7 +55,7 @@ group_authors=("xiongchen","wangkangkang")
 authors_ci_count=dict.fromkeys(group_authors)
 
 ScanPath=""
-fileName = "ccsg_week_commit.xls"
+fileName = "ccsg_week_commit.xlsx"
 weeks=1
 remote_branch=""
 select_author=""
@@ -61,11 +64,17 @@ select_author=""
 debugLog = 0
 debugLogLevel=(0,1,2,3)	# 0:no log; 1:op logic; 2:op; 3:verbose
 
+#file format
+branch_interval_lines=2
+
 # git rec info
 class GitRecInfo:
 	RepoCntSum={}
+	RepoBraCntSum={}
 	AuthorCiSum={}
 	ReposBranches={}
+
+	__RepoBranchTitle=("Branches","Author","Commit Num","Commit info")
 	
 	def __GitLogCnt(self,info):
 		patten = re.compile(r"\w{39}\s")
@@ -75,7 +84,7 @@ class GitRecInfo:
 			print "Num is ",len(commit)
 		return len(commit)		
 
-	def __UpdateNum(self,rep,aut,num):
+	def __UpdateNum(self,rep,bra,aut,num):
 		if debugLog >= debugLogLevel[-1]:
 			print "Repo: ",rep,"Author: ",aut,"Num: ",num
 
@@ -84,10 +93,27 @@ class GitRecInfo:
 			RCnt+=num
 			self.RepoCntSum[rep]=RCnt
 		else:
+			bras={}
+			bras[bra]=num
+			self.RepoBraCntSum[rep]=bras
 			self.RepoCntSum[rep]=num
 		
 		if debugLog >= debugLogLevel[-1]:
 			print rep," Num: ",self.RepoCntSum[rep]
+
+		if self.RepoBraCntSum.has_key(rep):
+			bras=self.RepoBraCntSum.get(rep)
+
+			if bras.has_key(bra):
+				BCnt=bras.get(bra)
+				BCnt+=num
+				bras[bra]=BCnt
+			else:
+				bras[bra]=num
+		else:
+			bras={}
+			bras[bra]=num
+			self.RepoBraCntSum[rep]=bras
 
 		if self.AuthorCiSum.has_key(aut):
 			ACnt=self.AuthorCiSum.get(aut)
@@ -99,38 +125,39 @@ class GitRecInfo:
 		if debugLog >= debugLogLevel[-1]:
 			print aut," Num: ",self.AuthorCiSum[aut]
 
+	# repo branch author log
 	def AddOneRec(self,rep,bra,aut,info):
 		if debugLog >= debugLogLevel[-1]:
 			print "branch is ",bra,"author is ",aut
 			print "info is:"
 			print info
 
-		self.__UpdateNum(rep,aut,self.__GitLogCnt(info))
+		self.__UpdateNum(rep,bra,aut,self.__GitLogCnt(info))
 		
-		dic={aut:info}
+		dic={}
+		dic[aut]=info
 		if self.ReposBranches.has_key(rep):
 			Branches=self.ReposBranches.get(rep)	
-			if debugLog >= debugLogLevel[-1]:
-				print "Branch data is ",Branches
+			if debugLog >= debugLogLevel[1]:
+				print "Branches-------> ",Branches.keys()
 
 			if Branches.has_key(bra):
 				data=Branches.get(bra)
-				if debugLog >= debugLogLevel[-2]:
-					print "Data data is ",data,"\n"
 				data.append(dic)
-			
+				if debugLog >= debugLogLevel[2]:
+					print "Add Data:",dic
+					print "Data data is ",data,"\n"
+				
 				Branches[bra]=data
-				self.ReposBranches[rep]=Branches
 			else:
-				Branch={}
 				data=[]
 				
-				if debugLog >= debugLogLevel[1]:
+				if debugLog >= debugLogLevel[2]:
 					print "Add NEW branch: ",bra
+					print "Add NEW Data:",dic
 
 				data.append(dic)
-				Branch[bra]=data
-				self.ReposBranches[rep]=Branch
+				Branches[bra]=data
 
 		else:
 			Branches={}
@@ -138,12 +165,129 @@ class GitRecInfo:
 			
 			if debugLog >= debugLogLevel[1]:
 				print "Add NEW Repo:",rep,"NEW Branch: ",bra
+			if debugLog >= debugLogLevel[2]:
+				print "New Data is ",dic
 			
 			data.append(dic)
 
 			Branches[bra]=data
 			self.ReposBranches[rep]=Branches
+	
+	def SaveRepoStat(self,ws_repo):
+		row_num=0
+		col_num=0
+		
+		for x in self.RepoCntSum.items():
+			if debugLog >= debugLogLevel[2]:
+				print "Repo Cnt:"
+				print x
+			ws_repo.set_column(row_num,col_num,len(x[0]))
+			ws_repo.write(row_num,col_num,x[0])
+			col_num += 1
+			
+			row_num += 1
+			col_num = 0
+			ws_repo.write(row_num,col_num,x[1])
+			col_num += 1
 
+#			for x in branches.keys():
+#				ws_repo.set_column(row_num,col_num,branches.get(x))
+#				ws_repo.write(row_num,col_num,branches.get(x))
+#				col_num += 1
+
+		print self.AuthorCiSum
+
+	def SaveRepo(self,wb,rep):
+		if self.ReposBranches.has_key(rep):
+			# add new sheet
+			if len(rep)<=31:
+				SheetName=rep
+			else:	
+				SheetName=rep[8:]		#del android_
+				if len(SheetName)>31:
+					SheetName=SheetName[0:30]
+
+			if debugLog >= debugLogLevel[2]:
+				print "Add worksheet:",rep,"Save sheet is:",SheetName
+			ws = wb.add_worksheet(SheetName)	
+		
+			# get Repo info
+			Repo=self.ReposBranches.get(rep)
+			if Repo:
+				row_num=0
+				col_num=0
+				BraAutCiCnt={}
+
+				for i in self.__RepoBranchTitle:
+					ws.write(row_num,col_num,self.__RepoBranchTitle[col_num])
+					col_num+=1
+				
+				row_num+=1									#!!! row + 1
+				col_num=0
+
+				BranchesInfos = Repo.items()				#!!!Info!!!:Tuple(branch,list[dict])
+				if debugLog >= debugLogLevel[-2]:
+					print "Branches info:"
+					print BranchesInfos,"\n"				#list
+
+				for BraInfo in BranchesInfos:				
+					if debugLog >= debugLogLevel[1]:
+						print "Branch info: "
+						print BraInfo						#Tupple
+			
+					for Info in BraInfo:					# string and list
+						Branch=""
+						if type(Info) is str:
+							Branch=Info
+							if debugLog >= debugLogLevel[-2]:
+								print "Sheet(",SheetName,")","Branch:",Branch
+							ws.set_column(row_num,col_num,len(Branch))
+							ws.write(row_num,col_num,Branch)
+							col_num+=1
+
+						elif type(Info) is list:
+							cur_col=col_num
+							for AutInfo in Info:			# -->dict
+								info=AutInfo.items()		# -->List
+								data=info[0]				# -->Tuple
+								
+								if debugLog >= debugLogLevel[-2]:
+									print "Author Name: ",data[0]
+								ws.set_column(row_num,cur_col,len(data[0]))
+								ws.write(row_num,cur_col,data[0])	# Save Author Name 
+								cur_col+=1
+								
+								CiLog = str(data[1:])
+								patten = re.compile(r"\w{39}\s")
+								CiInfo = re.findall(patten,CiLog)
+								CiCnt = len(CiInfo)
+						
+								ws.write(row_num,cur_col,CiCnt)		# Save Ci Num
+								cur_col+=1
+								
+								for x in data[1:]:
+									if debugLog >= debugLogLevel[-2]:
+										print "Branch: ",Branch," Commit info: "
+										print x
+									ws.write(row_num,cur_col,x)			# Save Ci Log
+									row_num += 1						#!!! Row + 1!!!
+									cur_col += 1
+
+								cur_col=col_num
+							
+#							BraAutCiCnt[Branch]=AutCiCnt
+						else:
+							print "ERROR: Branches info in not Branch name and Author commit info:"
+							print Info
+							print "Type is ",type(Info)
+
+					col_num = 0
+					row_num += branch_interval_lines		# Add lines interval
+
+
+		else:
+			print "WARNING: NO repo",rep," info"
+		
 # abstract log of one branch
 def deal_branch(repo,branch_list,GitR):
 	for branch in branch_list:
@@ -186,6 +330,8 @@ def get_branches():
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
+        if debugLog >= debugLogLevel[-2]:
+			print stdout
         tmp_str = stdout.split('Local branches configured')[0]
         try:
             tmp_str = tmp_str.split('Remote branches:\n')[1]
@@ -209,22 +355,38 @@ def get_branches():
 
 
 def GoToDir(path):
-		GitRec=GitRecInfo()
+	GitRec=GitRecInfo()
+		
+	workbook=xlsxwriter.Workbook(fileName)
 
-		for file in os.listdir(path):
-			if os.path.isdir(file):
+	ws_repo=workbook.add_worksheet("Repo")
+		
+	for file in os.listdir(path):
+		if os.path.isdir(file):
+			if debugLog >= debugLogLevel[-2]:
+				print "Dir is "+file
+			
+			os.chdir(file)
+				
+			branch_list = get_branches()
+
+			if branch_list:
 				if debugLog >= debugLogLevel[-2]:
-					print "Dir is "+file
-				
-				os.chdir(file)
-				
-				branch_list = get_branches()
-
-				if branch_list:
-					if debugLog >= debugLogLevel[-2]:
-						print "Branches is ",branch_list
+					print "Branches is ",branch_list
 					
-					deal_branch(file,branch_list,GitRec)
+				deal_branch(file,branch_list,GitRec)
+
+			# save repo
+			GitRec.SaveRepo(workbook,file)
+
+	#Save Repo stat
+	GitRec.SaveRepoStat(ws_repo)
+
+	#!!! change to cur dir
+	os.chdir(path)
+	
+	# save xlsx file
+	workbook.close()
 
 def ParseArgv():
 	if not len(sys.argv):
