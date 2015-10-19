@@ -41,6 +41,7 @@
 #	liuchangjian	2015-10-16	v0.1		git log function is ok!
 #	liuchangjian	2015-10-16	v0.1		log statistics is ok
 #	liuchangjian	2015-10-17	v0.1		Add xlsx file save
+#	liuchangjian	2015-10-19	v0.1		Add repos stat output
 #
 ###########################################################################################################
 
@@ -93,9 +94,6 @@ class GitRecInfo:
 			RCnt+=num
 			self.RepoCntSum[rep]=RCnt
 		else:
-			bras={}
-			bras[bra]=num
-			self.RepoBraCntSum[rep]=bras
 			self.RepoCntSum[rep]=num
 		
 		if debugLog >= debugLogLevel[-1]:
@@ -138,8 +136,8 @@ class GitRecInfo:
 		dic[aut]=info
 		if self.ReposBranches.has_key(rep):
 			Branches=self.ReposBranches.get(rep)	
-			if debugLog >= debugLogLevel[1]:
-				print "Branches-------> ",Branches.keys()
+			if debugLog >= debugLogLevel[2]:
+				print "Branches:",Branches.keys()
 
 			if Branches.has_key(bra):
 				data=Branches.get(bra)
@@ -164,8 +162,9 @@ class GitRecInfo:
 			data=[]
 			
 			if debugLog >= debugLogLevel[1]:
-				print "Add NEW Repo:",rep,"NEW Branch: ",bra
+				print "Add NEW Repo:",rep
 			if debugLog >= debugLogLevel[2]:
+				print "NEW Branch: ",bra
 				print "New Data is ",dic
 			
 			data.append(dic)
@@ -176,26 +175,72 @@ class GitRecInfo:
 	def SaveRepoStat(self,ws_repo):
 		row_num=0
 		col_num=0
+
+		#Save All repos
+		if debugLog >= debugLogLevel[-1]:
+			print "Repos:"
+			print self.RepoCntSum
+			
+		repo_list = self.RepoCntSum.keys()
+		for i in range(0,len(repo_list)):
+			ws_repo.set_column(row_num,col_num,len(repo_list[i]))
+			ws_repo.write(row_num,col_num,repo_list[i])
+			col_num += 1
+
+		row_num += 1												# counte save to next row
+		col_num = 0
+		repo_values = self.RepoCntSum.values()
+		for i in range(0,len(repo_values)):
+			ws_repo.write(row_num,col_num,repo_values[i])
+			col_num += 1
+
+		row_num += 2
+		col_num = 0
 		
-		for x in self.RepoCntSum.items():
-			if debugLog >= debugLogLevel[2]:
-				print "Repo Cnt:"
+		#Save every repo branches info
+		for x in self.RepoBraCntSum.items():
+			if debugLog >= debugLogLevel[1]:
+				print "Stat: Repo Branch:"
 				print x
-			ws_repo.set_column(row_num,col_num,len(x[0]))
 			ws_repo.write(row_num,col_num,x[0])
 			col_num += 1
 			
+			branches_list = x[1].keys()
+			for i in range(0,len(branches_list)):
+				ws_repo.set_column(row_num,col_num,len(branches_list[i]))
+				ws_repo.write(row_num,col_num,branches_list[i])
+				col_num += 1
+
+			row_num += 1											# counte save to next row
+			col_num -= len(branches_list)
+
+			branches_values = x[1].values()
+			for i in range(0,len(branches_values)):
+				ws_repo.write(row_num,col_num,branches_values[i])
+				col_num += 1
+			
+			row_num += 1											# !!!row + 1
+
+		row_num += 2
+		col_num = 0
+
+		# Save Author commit num info
+		ws_repo.write(row_num,col_num,"Author:")
+		row_num += 1
+		ws_repo.write(row_num,col_num,"Commit Num:")
+		row_num -= 1
+
+		col_num += 1
+		for x in self.AuthorCiSum.items():
+			if debugLog >= debugLogLevel[-1]:
+				print "Author Cnt:"
+				print x
+			ws_repo.write(row_num,col_num,x[0])
+			
 			row_num += 1
-			col_num = 0
 			ws_repo.write(row_num,col_num,x[1])
+			row_num -= 1
 			col_num += 1
-
-#			for x in branches.keys():
-#				ws_repo.set_column(row_num,col_num,branches.get(x))
-#				ws_repo.write(row_num,col_num,branches.get(x))
-#				col_num += 1
-
-		print self.AuthorCiSum
 
 	def SaveRepo(self,wb,rep):
 		if self.ReposBranches.has_key(rep):
@@ -231,7 +276,7 @@ class GitRecInfo:
 					print BranchesInfos,"\n"				#list
 
 				for BraInfo in BranchesInfos:				
-					if debugLog >= debugLogLevel[1]:
+					if debugLog >= debugLogLevel[-2]:
 						print "Branch info: "
 						print BraInfo						#Tupple
 			
@@ -239,7 +284,7 @@ class GitRecInfo:
 						Branch=""
 						if type(Info) is str:
 							Branch=Info
-							if debugLog >= debugLogLevel[-2]:
+							if debugLog >= debugLogLevel[2]:
 								print "Sheet(",SheetName,")","Branch:",Branch
 							ws.set_column(row_num,col_num,len(Branch))
 							ws.write(row_num,col_num,Branch)
@@ -290,6 +335,9 @@ class GitRecInfo:
 		
 # abstract log of one branch
 def deal_branch(repo,branch_list,GitR):
+	if debugLog >= debugLogLevel[-1]:
+		print "Cur Repo: ",repo
+
 	for branch in branch_list:
 		if debugLog >= debugLogLevel[-2]:
 			print "Branch is "+branch
