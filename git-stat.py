@@ -62,6 +62,7 @@ group_authors=("liuchangjian")
 authors_ci_count=dict.fromkeys(group_authors)
 
 ScriptPath=""
+
 ScanPath=""
 fileName = "ccsg_week_commit.xlsx"
 weeks=""
@@ -393,8 +394,8 @@ class GitRecInfo:
 							chart_author_ci = wb.add_chart({"type":"column"})
 							chart_author_ci.set_style(11)
 		
-							auth_x_abs = xl_range_abs(row_num-len(Info),col_num,row_num,col_num)
-							auth_y_abs = xl_range_abs(row_num-len(Info),col_num+1,row_num,col_num+1)
+							auth_x_abs = xl_range_abs(row_num-len(Info),col_num,row_num-1,col_num)
+							auth_y_abs = xl_range_abs(row_num-len(Info),col_num+1,row_num-1,col_num+1)
 							auth_cat="="+ws.get_name()+"!"+auth_x_abs
 							auth_val="="+ws.get_name()+"!"+auth_y_abs
 							chart_author_ci.add_series({
@@ -503,14 +504,16 @@ def GoToDir(path):
 		print os.listdir(path)
 		
 	for file in os.listdir(path):
-		if os.path.isdir(os.path.join(path,file)):
+		os.chdir(path)
+
+		if os.path.isdir(file):
 			if repo_set:
 				if repo_set != file:
 					continue
 			
 			print "Scan Dir is "+file
 
-			os.chdir(os.path.join(path,file))
+			os.chdir(file)
 				
 			branch_list = get_branches()
 
@@ -616,12 +619,13 @@ def Usage():
 
 if __name__ == '__main__':
 	ScriptPath = os.getcwd()
+
 	ParseArgv()
 
 	if not ScanPath.strip():
 		spath = os.getcwd()
 	else:
-		spath = ScanPath
+		spath = os.path.abspath(ScanPath)					# get abs path!!!
 	
 	print 'Scan DIR: '+spath+'\n'
 
