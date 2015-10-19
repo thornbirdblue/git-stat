@@ -45,6 +45,7 @@
 #	liuchangjian	2015-10-19	v0.1		Add sheet chart
 #	liuchangjian	2015-10-19	v0.9		Release test version 0.9
 #	liuchangjian	2015-10-19	v1.0		Release ver 1.0 for camera system group!!!
+#	liuchangjian	2015-10-19	v1.1		!!!fix name contain "-" sheet,add_chart will be blank!!!
 #
 ###########################################################################################################
 
@@ -60,11 +61,13 @@ repo_select="vivo_"
 group_authors=("liuchangjian")
 authors_ci_count=dict.fromkeys(group_authors)
 
+ScriptPath=""
 ScanPath=""
 fileName = "ccsg_week_commit.xlsx"
 weeks=""
 remote_branch=""
 select_author=""
+repo_set=""
 
 # log var
 debugLog = 0
@@ -259,6 +262,7 @@ class GitRecInfo:
 		
 			ws_repo.insert_chart(row_num,1,chart_branch)
 			row_num += charts_interval_row
+			col_num = 0												# fix col_num is not reset bug
 
 		row_num += 2
 		col_num = 0
@@ -310,6 +314,10 @@ class GitRecInfo:
 				if len(SheetName)>31:
 					SheetName=SheetName[0:30]
 
+			if SheetName.find("-")!= -1:
+				print "!!!WARN!!! Sheet Name:",SheetName,"contain of "+"-"+" will delete!!!"
+				SheetName=SheetName.replace("-","")						###!!!fix name contain "-" sheet,add_chart will be blank!!!
+			
 			if debugLog >= debugLogLevel[2]:
 				print "Add worksheet:",rep,"Save sheet is:",SheetName
 			ws = wb.add_worksheet(SheetName)	
@@ -489,13 +497,20 @@ def GoToDir(path):
 	workbook=xlsxwriter.Workbook(fileName)
 
 	ws_repo=workbook.add_worksheet("Repo")
+	
+	if debugLog >= debugLogLevel[1]:
+		print "listdir:"
+		print os.listdir(path)
 		
 	for file in os.listdir(path):
-		if os.path.isdir(file):
-			if debugLog >= debugLogLevel[-2]:
-				print "Dir is "+file
+		if os.path.isdir(os.path.join(path,file)):
+			if repo_set:
+				if repo_set != file:
+					continue
 			
-			os.chdir(file)
+			print "Scan Dir is "+file
+
+			os.chdir(os.path.join(path,file))
 				
 			branch_list = get_branches()
 
@@ -507,12 +522,15 @@ def GoToDir(path):
 
 			# save repo
 			GitRec.SaveRepo(workbook,file)
+		else:
+			if debugLog >= debugLogLevel[1]:
+				print "!!!WARN!!!",os.path.join(path,file),"is NOT Dir!!!"
 
 	#Save Repo stat
 	GitRec.SaveRepoStat(workbook,ws_repo)
 
 	#!!! change to cur dir
-	os.chdir(path)
+	os.chdir(ScriptPath)
 	
 	# save xlsx file
 	workbook.close()
@@ -573,6 +591,14 @@ def ParseArgv():
 			else:
 				Usage()
 				sys.exit()
+		elif sys.argv[i] == '-r':
+			if sys.argv[i+1]:
+				global repo_set
+				repo_set = sys.argv[i+1]
+				print 'stat repo is '+repo_set
+			else:
+				Usage()
+				sys.exit()
 		elif sys.argv[i] == '-p':
 			if sys.argv[i+1]:
 				global ScanPath
@@ -585,10 +611,11 @@ def ParseArgv():
 
 def Usage():
 	print 'Command Format :'
-	print '		git-stat [-d 1/2/3] [-o outputfile] [-p path] [-w weeks] [-a author] [-b remote_branch]| [-h]'
+	print '		git-stat [-d 1/2/3] [-o outputfile] [-p path] [-w weeks] [-a author] [-r repo][-b remote_branch]| [-h]'
 
 
 if __name__ == '__main__':
+	ScriptPath = os.getcwd()
 	ParseArgv()
 
 	if not ScanPath.strip():
@@ -599,3 +626,4 @@ if __name__ == '__main__':
 	print 'Scan DIR: '+spath+'\n'
 
 	GoToDir(spath)
+	print "\nScan is OK! And Exit()!\n"
