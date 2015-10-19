@@ -43,6 +43,8 @@
 #	liuchangjian	2015-10-17	v0.1		Add xlsx file save
 #	liuchangjian	2015-10-19	v0.1		Add repos stat output
 #	liuchangjian	2015-10-19	v0.1		Add sheet chart
+#	liuchangjian	2015-10-19	v0.9		Release test version 0.9
+#	liuchangjian	2015-10-19	v1.0		Release ver 1.0 for camera system group!!!
 #
 ###########################################################################################################
 
@@ -55,12 +57,12 @@ sys.setdefaultencoding('utf8')
 repo_select="vivo_"
 
 # authors
-group_authors=("xiongchen","wangkangkang")
+group_authors=("liuchangjian")
 authors_ci_count=dict.fromkeys(group_authors)
 
 ScanPath=""
 fileName = "ccsg_week_commit.xlsx"
-weeks=1
+weeks=""
 remote_branch=""
 select_author=""
 
@@ -427,9 +429,12 @@ def deal_branch(repo,branch_list,GitR):
 				print "group authors is",group_authors
 
 		for author in group_authors:
-			cmd_git_log=["git","log","--pretty=oneline"]#,"--since="+str(weeks)+".weeks"]
+			cmd_git_log=["git","log","--pretty=oneline"]
 			
 			cmd_git_log.append("--author="+author)
+
+			if weeks:												#add sinc weeks
+				cmd_git_log.append("--since="+str(weeks)+".weeks")
 			
 			if debugLog >= debugLogLevel[-1]:
 				print cmd_git_log
