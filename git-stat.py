@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
 #########################################################################################################
 #	CopyRight	(C)	VIVO,2025		All Right Reserved!
 #
@@ -46,19 +46,25 @@
 #	liuchangjian	2015-10-19	v0.9		Release test version 0.9
 #	liuchangjian	2015-10-19	v1.0		Release ver 1.0 for camera system group!!!
 #	liuchangjian	2015-10-19	v1.1		!!!fix name contain "-" sheet,add_chart will be blank!!!
+#	liuchangjian	2015-10-19	v2.0		Add pdf file save git log -p data
 #
 ###########################################################################################################
 
 import sys,os,string,subprocess,re,xlsxwriter
 from xlsxwriter.utility import xl_range_abs
 
+from reportlab.pdfgen import canvas								# v2.0 add
+from reportlab.lib.units import inch
+
 reload(sys)
 sys.setdefaultencoding('utf8')
+
 # select branch
 repo_select="vivo_"
 
 # authors
 group_authors=("liuchangjian")
+
 authors_ci_count=dict.fromkeys(group_authors)
 
 ScriptPath=""
@@ -69,6 +75,8 @@ weeks=""
 remote_branch=""
 select_author=""
 repo_set=""
+
+PdfFile=0				# v2.0 save pdf file enable!
 
 # log var
 debugLog = 0
@@ -430,7 +438,7 @@ def deal_branch(repo,branch_list,GitR):
 			os.system('git pull -q ')
 		except Exception, error:
 			print error
-	   
+	  
 		if select_author:
 			global group_authors
 			group_authors=[select_author]
@@ -454,7 +462,6 @@ def deal_branch(repo,branch_list,GitR):
 				if debugLog >= debugLogLevel[-1]:
 					print "git log is :"
 					print stdout
-				
 				GitR.AddOneRec(repo,branch,author,stdout)
 
 # get all branches of a project
@@ -502,7 +509,7 @@ def GoToDir(path):
 	if debugLog >= debugLogLevel[1]:
 		print "listdir:"
 		print os.listdir(path)
-		
+	
 	for file in os.listdir(path):
 		os.chdir(path)
 
@@ -536,7 +543,95 @@ def GoToDir(path):
 	os.chdir(ScriptPath)
 	
 	# save xlsx file
-	workbook.close()
+	workbook.close()									# if not utf8 then 'ascii' codec can't decode byte 0xe7 in position 89
+
+# v2.0 add 
+def deal_branch_patch(repo,branch_list,canvas,text):
+
+	text.textLine("Repos: "+repo)	
+
+	text.textLine("Branches:")
+	for branch in branch_list:
+		try:
+			os.system('git checkout -q -f ' + branch)
+			os.system('git pull -q ')
+		except Exception, error:
+			print error
+				
+		if select_author:
+			global group_authors
+			group_authors=[select_author]
+		
+		#set flag to draw branch once!
+		DrawBranchFlag=1					
+		for author in group_authors:
+			cmd_git_log=["git","log","-p","--oneline"]
+			
+			cmd_git_log.append("--author="+author)
+
+			if weeks:												#add sinc weeks
+				cmd_git_log.append("--since="+str(weeks)+".weeks")
+			
+			if debugLog >= debugLogLevel[-1]:
+				print "Save pdf git cmd: ",cmd_git_log
+	
+			proc = subprocess.Popen(cmd_git_log,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+			stdout, stderr = proc.communicate()
+			if stdout:
+				if DrawBranchFlag:
+					text.textLine(branch)
+					DrawBranchFlag=0				#reset flag
+				text.textLine("")
+				text.textLine("Author: "+author)
+				if debugLog >= debugLogLevel[-1]:
+					print "pdf git log is :"
+					print stdout
+				
+				text.textLines(stdout.decode('gb2312','ignore').encode('utf-8','ignore'))		# utf8:'utf8' codec can't decode byte 0xce in position 2
+
+def NewPage(pagenum):
+	print "page: ",pagenum
+	
+
+def SavePatchPdf(path):
+	# pdf save
+	if debugLog >= debugLogLevel[-1]:
+		print "Begin to Save git log -p to pdf file!!!"
+
+	rep_canvas=canvas.Canvas("camera_modify.pdf",bottomup=0)
+	rep_canvas.translate(0.5*inch,0.5*inch)
+	rep_canvas.setPageCallBack(NewPage)
+
+	TextObj=rep_canvas.beginText()
+
+	for file in os.listdir(path):
+		os.chdir(path)
+
+		if os.path.isdir(file):
+			if repo_set:
+				if repo_set != file:
+					continue
+
+			os.chdir(file)
+				
+			branch_list = get_branches()
+
+			if branch_list:
+				if debugLog >= debugLogLevel[-2]:
+					print "Deal Branches Patch is ",branch_list
+					
+				deal_branch_patch(file,branch_list,rep_canvas,TextObj)
+
+	#!!! change to cur dir
+	os.chdir(ScriptPath)
+	
+	# save pdf file
+	rep_canvas.drawText(TextObj)
+
+	rep_canvas.showPage()
+	rep_canvas.save()
+
+	print "Save git log -p is OK!!!"
 
 def ParseArgv():
 	if not len(sys.argv):
@@ -610,11 +705,23 @@ def ParseArgv():
 			else:
 				Usage()
 				sys.exit()
+		elif sys.argv[i] == '-pp':
+			if sys.argv[i+1]:
+				enable = string.atoi(sys.argv[i+1],10)
+				if type(enable) == int:
+					global PdfFile
+					PdfFile = enable						
+					print 'Save Patch to Pdf is: '+str(PdfFile)
+				else:
+					print 'cmd para ERROR: '+sys.argv[i+1]+' is not int num!!!'
+			else:
+				CameraOpenKPIHelp()
+				sys.exit()
 					
 
 def Usage():
 	print 'Command Format :'
-	print '		git-stat [-d 1/2/3] [-o outputfile] [-p path] [-w weeks] [-a author] [-r repo][-b remote_branch]| [-h]'
+	print '		git-stat [-d 1/2/3] [-o outputfile] [-p path] [-w weeks] [-a author] [-r repo][-b remote_branch] [-pp patch_pdf]| [-h]'
 
 
 if __name__ == '__main__':
@@ -630,4 +737,8 @@ if __name__ == '__main__':
 	print 'Scan DIR: '+spath+'\n'
 
 	GoToDir(spath)
+
+	if PdfFile:
+		SavePatchPdf(spath)
+
 	print "\nScan is OK! And Exit()!\n"
