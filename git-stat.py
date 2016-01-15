@@ -47,10 +47,11 @@
 #	liuchangjian	2015-10-19	v1.0		Release ver 1.0 for camera system group!!!
 #	liuchangjian	2015-10-19	v1.1		!!!fix name contain "-" sheet,add_chart will be blank!!!
 #	liuchangjian	2015-10-19	v2.0		Add pdf file save git log -p data
+#	liuchangjian	2016-01-15	v2.1		Add date and time of save file name
 #
 ###########################################################################################################
 
-import sys,os,string,subprocess,re,xlsxwriter
+import sys,os,string,subprocess,re,xlsxwriter,time
 from xlsxwriter.utility import xl_range_abs
 
 from reportlab.pdfgen import canvas								# v2.0 add
@@ -63,14 +64,14 @@ sys.setdefaultencoding('utf8')
 repo_select="vivo_"
 
 # authors
-group_authors=("liuchangjian")
-
+group_authors=("liuchangjian","fangchao","limingjin","xujing","xiongchen","hupengxiang","liuguangwei","yangzhixiong","wangkangkang","yangqing","yinqiuming","pengzuo","huangchuangjie","zhangxinyuan")
 authors_ci_count=dict.fromkeys(group_authors)
 
 ScriptPath=""
 
 ScanPath=""
-fileName = "ccsg_week_commit.xlsx"
+fileName = "ccsg_commit"
+fileSuffix=".xlsx"
 weeks=""
 remote_branch=""
 select_author=""
@@ -501,8 +502,12 @@ def get_branches():
 
 def GoToDir(path):
 	GitRec=GitRecInfo()
-		
-	workbook=xlsxwriter.Workbook(fileName)
+	# 2016-01-15 add
+	ISOTIMEFORMAT="%m-%d_%H%I%M"
+	SaveName=fileName+"_"+os.path.split(path)[-1]+"_"+time.strftime(ISOTIMEFORMAT, time.localtime())+fileSuffix
+	if debugLog >= debugLogLevel[-1]:
+		print "save name",SaveName
+	workbook=xlsxwriter.Workbook(SaveName)
 
 	ws_repo=workbook.add_worksheet("Repo")
 	
