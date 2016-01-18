@@ -48,6 +48,7 @@
 #	liuchangjian	2015-10-19	v1.1		!!!fix name contain "-" sheet,add_chart will be blank!!!
 #	liuchangjian	2015-10-19	v2.0		Add pdf file save git log -p data
 #	liuchangjian	2016-01-15	v2.1		Add date and time of save file name
+#	liuchangjian	2016-01-18	v2.2		Add ReposBranches is NULL judge in SaveRepo().
 #
 ###########################################################################################################
 
@@ -315,6 +316,11 @@ class GitRecInfo:
 		row_num += charts_interval_row
 
 	def SaveRepo(self,wb,rep):
+		if len(self.ReposBranches)== 0:
+			if debugLog >= debugLogLevel[1]:
+				print "WARNING ",rep," ReposBranches is NULL! No author haved committed!"
+			return
+		
 		if self.ReposBranches.has_key(rep):
 			# add new sheet
 			if len(rep)<=31:
@@ -424,7 +430,7 @@ class GitRecInfo:
 
 
 		else:
-			print "WARNING: NO repo",rep," info"
+			print "WARNING: NO Author commmit in repo",rep," branch"
 		
 # abstract log of one branch
 def deal_branch(repo,branch_list,GitR):
