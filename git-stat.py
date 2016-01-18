@@ -322,7 +322,7 @@ class GitRecInfo:
 			else:	
 				SheetName=rep[8:]		#del android_
 				if len(SheetName)>31:
-					SheetName=SheetName[0:30]
+					SheetName=SheetName[-31:-1]
 
 			if SheetName.find("-")!= -1:
 				print "!!!WARN!!! Sheet Name:",SheetName,"contain of "+"-"+" will delete!!!"
