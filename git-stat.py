@@ -49,6 +49,9 @@
 #	liuchangjian	2015-10-19	v2.0		Add pdf file save git log -p data
 #	liuchangjian	2016-01-15	v2.1		Add date and time of save file name
 #	liuchangjian	2016-01-18	v2.2		Add ReposBranches is NULL judge in SaveRepo().
+#	liuchangjian	2016-01-18	v2.3		Add month query.
+#	liuchangjian	2016-10-05	v3.0		Add Save to HTML file
+#	liuchangjian	2016-10-09	v3.1		Add Save to HTML file
 #
 ###########################################################################################################
 
@@ -74,11 +77,14 @@ ScanPath=""
 fileName = "ccsg_commit"
 fileSuffix=".xlsx"
 weeks=""
+months=""
 remote_branch=""
 select_author=""
 repo_set=""
 
 PdfFile=0				# v2.0 save pdf file enable!
+HtmlFile=0				# v3.0 save html file enable!
+UpdateGitFlag=1
 
 # log var
 debugLog = 0
@@ -431,6 +437,174 @@ class GitRecInfo:
 
 		else:
 			print "WARNING: NO Author commmit in repo",rep," branch"
+
+	def SaveRepoStatHtml(self,path):
+		#Save All repos
+		if debugLog >= debugLogLevel[-1]:
+			print "Repos:"
+			print self.RepoCntSum
+		
+		ISOTIMEFORMAT="%m-%d_%H%I%M"
+		SaveName=fileName+"_"+os.path.split(path)[-1]+"_"+time.strftime(ISOTIMEFORMAT, time.localtime())+".html"
+		
+		f=open(SaveName,'w')	
+		printHeader(f,SaveName)	
+
+		f.write('<p>')
+		f.write('<table border="1">'+'\n')
+		f.write('<tr>')
+		repo_list = self.RepoCntSum.keys()
+		for i in range(0,len(repo_list)):
+			f.write('<td>'+repo_list[i]+'</td>'+'\n')
+		f.write('</tr>')
+
+		f.write('<tr>')
+		repo_values = self.RepoCntSum.values()
+		for i in range(0,len(repo_values)):
+			f.write('<td>%d</td>'%repo_values[i])
+		f.write('</tr>')
+		f.write('</table>')
+		f.write('</p>')
+		
+		
+		#Save every repo branches info
+		for x in self.RepoBraCntSum.items():
+			if debugLog >= debugLogLevel[1]:
+				print "Stat: Repo Branch:"
+				print x
+	
+			f.write('<p>')
+			f.write('<table border="1">'+'\n')
+			f.write('Branch: '+x[0])
+			
+			f.write('<tr>')
+			branches_list = x[1].keys()
+			for i in range(0,len(branches_list)):
+				f.write('<td>'+branches_list[i]+'</td>'+'\n')
+			f.write('</tr>')
+
+			f.write('<tr>')
+			branches_values = x[1].values()
+			for i in range(0,len(branches_values)):
+				f.write('<td>%d</td>'%branches_values[i])
+			f.write('</tr>')
+
+			f.write('</table>')
+			f.write('</p>')
+
+		f.write('<p>')
+		f.write('<table border="1">'+'\n')
+		# Save Author commit num info
+		f.write('<tr>')
+		f.write('<td>'+"Author:"+'</td>'+'\n')
+		auth_list = self.AuthorCiSum.keys()
+		for i in range(0,len(auth_list)):
+			f.write('<td>'+auth_list[i]+'</td>'+'\n')
+		f.write('</tr>')
+
+		f.write('<tr>')
+		f.write('<td>'+"Commit Num:"+'</td>'+'\n')
+		
+		auth_values = self.AuthorCiSum.values()
+		for i in range(0,len(auth_values)):
+			f.write('<td>%d</td>'%auth_values[i])
+		f.write('</tr>')
+		f.write('</table>')
+		f.write('</p>')
+
+		printTail(f)
+		f.close()
+		
+	def SaveRepoHtml(self,path,rep):
+		if len(self.ReposBranches)== 0:
+			if debugLog >= debugLogLevel[1]:
+				print "WARNING ",rep," ReposBranches is NULL! No author have committed!"
+			return
+		
+		if self.ReposBranches.has_key(rep):
+			
+			SheetName=rep
+			
+			if debugLog >= debugLogLevel[2]:
+				print "Add worksheet:",rep,"Save sheet is:",SheetName
+
+			f=open(SheetName+'.html','w')	
+			printHeader(f,SheetName)	
+	
+			f.write('<table border="1">'+'\n')
+
+			# get Repo info
+			Repo=self.ReposBranches.get(rep)
+			if Repo:
+				BraAutCiCnt={}
+			
+				if debugLog >= debugLogLevel[2]:
+					print "Repo info:"
+					print Repo
+				
+				f.write('<tr>')
+				for i in self.__RepoBranchTitle:
+					f.write('<td>'+i+'</td>')
+				f.write('</tr>'+'\n')
+
+				
+				BranchesInfos = Repo.items()				#!!!Info!!!:Tuple(branch,list[dict])
+				if debugLog >= debugLogLevel[-2]:
+					print "Branches info:"
+					print BranchesInfos,"\n"				#list
+
+				for BraInfo in BranchesInfos:				
+					if debugLog >= debugLogLevel[-2]:
+						print "Branch info: "
+						print BraInfo						#Tupple
+			
+					for Info in BraInfo:					# string and list
+						if type(Info) is str:
+							Branch=Info
+							if debugLog >= debugLogLevel[2]:
+								print "Sheet(",SheetName,")","Branch:",Branch
+							f.write('<tr>'+'\n')
+							f.write('<td>'+Branch+'</td>')
+
+						elif type(Info) is list:
+							for AutInfo in Info:			# -->dict
+								author=AutInfo.keys()		# -->list	
+								
+								if debugLog >= debugLogLevel[-2]:
+									print "Author Name: ",author
+							
+								if Info.index(AutInfo)>0:
+									f.write('<td></td>')
+
+								f.write('<td>'+author[0]+'</td>')	# Save Author Name 
+								
+								CiLog = AutInfo.values()
+								patten = re.compile(r"\w{39}\s")
+								CiInfo = re.findall(patten,CiLog[0])
+								CiCnt = len(CiInfo)
+						
+								f.write('<td>%d</td>'%(CiCnt))		# Save Ci Num
+								f.write('\n')
+
+								for x in CiLog:
+									if debugLog >= debugLogLevel[-2]:
+										print " Commit info: "
+										print x
+									f.write('<td>'+x+'</td>')			# Save Ci Log
+							
+								f.write('</tr>')
+									
+						else:
+							print "ERROR: Branches info in not Branch name and Author commit info:"
+							print Info
+							print "Type is ",type(Info)
+				
+			f.write('</table>')
+			printTail(f)
+			f.close()
+
+		else:
+			print "WARNING: NO Author commmit in repo",rep," branch"
 		
 # abstract log of one branch
 def deal_branch(repo,branch_list,GitR):
@@ -459,6 +633,9 @@ def deal_branch(repo,branch_list,GitR):
 
 			if weeks:												#add sinc weeks
 				cmd_git_log.append("--since="+str(weeks)+".weeks")
+			else:
+				if months:												#add sinc weeks
+					cmd_git_log.append("--since="+str(months)+".month.ago")
 			
 			if debugLog >= debugLogLevel[-1]:
 				print cmd_git_log
@@ -506,21 +683,24 @@ def get_branches():
     return branch_list
 
 
-def GoToDir(path):
-	GitRec=GitRecInfo()
+def GoToDir(path,GitRec):
+	global HtmlFile
+#	GitRec=GitRecInfo()
 	# 2016-01-15 add
 	ISOTIMEFORMAT="%m-%d_%H%I%M"
 	SaveName=fileName+"_"+os.path.split(path)[-1]+"_"+time.strftime(ISOTIMEFORMAT, time.localtime())+fileSuffix
 	if debugLog >= debugLogLevel[-1]:
 		print "save name",SaveName
-	workbook=xlsxwriter.Workbook(SaveName)
-
-	ws_repo=workbook.add_worksheet("Repo")
+	
+	if HtmlFile==0:
+		workbook=xlsxwriter.Workbook(SaveName)
+		ws_repo=workbook.add_worksheet("Repo")
 	
 	if debugLog >= debugLogLevel[1]:
 		print "listdir:"
 		print os.listdir(path)
-	
+		print '\n'
+
 	for file in os.listdir(path):
 		os.chdir(path)
 
@@ -530,7 +710,7 @@ def GoToDir(path):
 					continue
 			
 			print "Scan Dir is "+file
-
+	
 			os.chdir(file)
 				
 			branch_list = get_branches()
@@ -541,20 +721,29 @@ def GoToDir(path):
 					
 				deal_branch(file,branch_list,GitRec)
 
-			# save repo
-			GitRec.SaveRepo(workbook,file)
+			# liuchangjian 2016-10-09 add for html save
+			if HtmlFile:
+				#!!! change to cur dir
+				os.chdir(ScriptPath)
+				GitRec.SaveRepoHtml(path,file)
+			else:
+				# save repo
+				GitRec.SaveRepo(workbook,file)
+			
 		else:
 			if debugLog >= debugLogLevel[1]:
 				print "!!!WARN!!!",os.path.join(path,file),"is NOT Dir!!!"
 
-	#Save Repo stat
-	GitRec.SaveRepoStat(workbook,ws_repo)
+	if HtmlFile:
+		GitRec.SaveRepoStatHtml(path)		
+	else:
+		#Save Repo stat
+		GitRec.SaveRepoStat(workbook,ws_repo)
+		# save xlsx file
+		workbook.close()									# if not utf8 then 'ascii' codec can't decode byte 0xe7 in position 89
 
 	#!!! change to cur dir
 	os.chdir(ScriptPath)
-	
-	# save xlsx file
-	workbook.close()									# if not utf8 then 'ascii' codec can't decode byte 0xe7 in position 89
 
 # v2.0 add 
 def deal_branch_patch(repo,branch_list,canvas,text):
@@ -644,6 +833,108 @@ def SavePatchPdf(path):
 
 	print "Save git log -p is OK!!!"
 
+def printHeader(f, title = ''):
+	f.write(
+			"""<!DOCTYPE html>
+			<html>
+			<head>
+		    <meta charset="UTF-8">
+		    <title>GitStats - %s</title>
+		    <meta name="generator" content="GitStats">
+			</head>
+			<body>
+			""" % (title))
+	f.write('\n')
+
+def printTail(f):
+	# save html file
+	f.write('</body>\n</html>')
+
+
+# v3.0 add 
+def deal_branch_html(f,repo,branch_list):
+	f.write('<hr />')
+	f.write('<h1>Repos: '+repo+'</h1>\n')	
+
+	f.write('Branches: \n')
+	for branch in branch_list:
+		try:
+			os.system('git checkout -q -f ' + branch)
+		
+			if UpdateGitFlag:
+				os.system('git pull -q ')
+		except Exception, error:
+			print error
+				
+		if select_author:
+			global group_authors
+			group_authors=[select_author]
+		
+		#set flag to draw branch once!
+		DrawBranchFlag=1					
+		for author in group_authors:
+			cmd_git_log=["git","log","--oneline"]
+			
+			cmd_git_log.append("--author="+author)
+
+			if weeks:												#add sinc weeks
+				cmd_git_log.append("--since="+str(weeks)+".weeks")
+			
+			if debugLog >= debugLogLevel[-1]:
+				print "Save pdf git cmd: ",cmd_git_log
+	
+			proc = subprocess.Popen(cmd_git_log,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+			stdout, stderr = proc.communicate()
+			if stdout:
+				if DrawBranchFlag:
+					f.write(branch)
+					DrawBranchFlag=0				#reset flag
+				f.write('<br>\n')
+				f.write('<h2>Author: '+author+'</h2>\n')
+				if debugLog >= debugLogLevel[-1]:
+					print "html git log is :"
+					print stdout
+				
+				f.write(stdout)		# utf8:'utf8' codec can't decode byte 0xce in position 2
+
+def SavePatchHtml(path):
+	# pdf save
+	if debugLog >= debugLogLevel[-1]:
+		print "Begin to Save git log -p to html file!!!"
+
+	ISOTIMEFORMAT="%m-%d_%H%I%M"
+	SaveName=fileName+"_"+os.path.split(path)[-1]+"_"+time.strftime(ISOTIMEFORMAT, time.localtime())+".html"
+
+	f = open(SaveName, 'w')
+	printHeader(f)
+
+	for file in os.listdir(path):
+		os.chdir(path)
+
+		if os.path.isdir(file):
+			if repo_set:
+				if repo_set != file:
+					continue
+
+			os.chdir(file)
+				
+			branch_list = get_branches()
+
+			if branch_list:
+				if debugLog >= debugLogLevel[-2]:
+					print "Deal Branches Patch is ",branch_list
+				deal_branch_html(f,file,branch_list)
+
+	# save html file
+	printTail(f)
+	f.close()
+	
+	#!!! change to cur dir
+	os.chdir(ScriptPath)
+	
+	print "Save git log -p is OK!!!"
+
+
 def ParseArgv():
 	if not len(sys.argv):
 		return
@@ -671,6 +962,18 @@ def ParseArgv():
 					global weeks
 					weeks = w_num						
 					print 'Statistics weeks: '+str(weeks)
+				else:
+					print 'cmd para ERROR: '+sys.argv[i+1]+' is not int num!!!'
+			else:
+				CameraOpenKPIHelp()
+				sys.exit()
+		elif sys.argv[i] == '-m':
+			if sys.argv[i+1]:
+				m_num = string.atoi(sys.argv[i+1],10)
+				if type(m_num) == int:
+					global months
+					months = m_num						
+					print 'Statistics months: '+str(months)
 				else:
 					print 'cmd para ERROR: '+sys.argv[i+1]+' is not int num!!!'
 			else:
@@ -716,24 +1019,25 @@ def ParseArgv():
 			else:
 				Usage()
 				sys.exit()
-		elif sys.argv[i] == '-pp':
-			if sys.argv[i+1]:
-				enable = string.atoi(sys.argv[i+1],10)
-				if type(enable) == int:
-					global PdfFile
-					PdfFile = enable						
-					print 'Save Patch to Pdf is: '+str(PdfFile)
-				else:
-					print 'cmd para ERROR: '+sys.argv[i+1]+' is not int num!!!'
-			else:
-				CameraOpenKPIHelp()
-				sys.exit()
+		elif sys.argv[i] == '-fp':
+				global PdfFile
+				PdfFile = 1
+				print 'Save Patch to Pdf is: '+str(PdfFile)
+		elif sys.argv[i] == '-fh':
+				global HtmlFile
+				HtmlFile = 1
+				print 'Save Patch to Html is: '+str(HtmlFile)
+		elif sys.argv[i] == '-nu':
+				global UpdateGitFlag
+				UpdateGitFlag = 0
+				print '!!!WARNING!!!: No Update Git repo!!! '+str(UpdateGitFlag)
 					
 
 def Usage():
 	print 'Command Format :'
-	print '		git-stat [-d 1/2/3] [-o outputfile] [-p path] [-w weeks] [-a author] [-r repo][-b remote_branch] [-pp patch_pdf]| [-h]'
+	print '		git-stat [-d 1/2/3] [-o outputfile] [-p path] [-w weeks] [-m months] [-a author] [-r repo][-b remote_branch] [-fp](save file pdf)|[-fh](save file html)|[-nu](no update git repo)| [-h]'
 
+#git-stat.py -d 1 -w 1 -fh -nu
 
 if __name__ == '__main__':
 	ScriptPath = os.getcwd()
@@ -745,11 +1049,16 @@ if __name__ == '__main__':
 	else:
 		spath = os.path.abspath(ScanPath)					# get abs path!!!
 	
-	print 'Scan DIR: '+spath+'\n'
+	print '\nScan DIR: '+spath+'\n'
 
-	GoToDir(spath)
+	GitRec=GitRecInfo()
+	GoToDir(spath,GitRec)
 
 	if PdfFile:
 		SavePatchPdf(spath)
+
+	# liuchangjian 2016-10-05 add to save html
+#	if HtmlFile:
+#		SavePatchHtml(spath)
 
 	print "\nScan is OK! And Exit()!\n"
