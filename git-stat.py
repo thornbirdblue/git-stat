@@ -693,6 +693,7 @@ def GoToDir(path,GitRec):
 		print "save name",SaveName
 	
 	if HtmlFile==0:
+		print "Save file Dir:"+os.getcwd()+"\n"
 		workbook=xlsxwriter.Workbook(SaveName)
 		ws_repo=workbook.add_worksheet("Repo")
 	
@@ -736,14 +737,16 @@ def GoToDir(path,GitRec):
 
 	if HtmlFile:
 		GitRec.SaveRepoStatHtml(path)		
+		#!!! change to cur dir
+		os.chdir(ScriptPath)
 	else:
+		#!!! change to cur dir
+		os.chdir(ScriptPath)
+		print "\nSave Excel file Dir:"+os.getcwd()+"\n"
 		#Save Repo stat
 		GitRec.SaveRepoStat(workbook,ws_repo)
 		# save xlsx file
 		workbook.close()									# if not utf8 then 'ascii' codec can't decode byte 0xe7 in position 89
-
-	#!!! change to cur dir
-	os.chdir(ScriptPath)
 
 # v2.0 add 
 def deal_branch_patch(repo,branch_list,canvas,text):
@@ -1050,7 +1053,7 @@ if __name__ == '__main__':
 		spath = os.path.abspath(ScanPath)					# get abs path!!!
 	
 	print '\nScan DIR: '+spath+'\n'
-
+	
 	GitRec=GitRecInfo()
 	GoToDir(spath,GitRec)
 
