@@ -736,9 +736,9 @@ def GoToDir(path,GitRec):
 				print "!!!WARN!!!",os.path.join(path,file),"is NOT Dir!!!"
 
 	if HtmlFile:
-		GitRec.SaveRepoStatHtml(path)		
 		#!!! change to cur dir
 		os.chdir(ScriptPath)
+		GitRec.SaveRepoStatHtml(path)		
 	else:
 		#!!! change to cur dir
 		os.chdir(ScriptPath)
